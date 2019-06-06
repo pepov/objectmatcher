@@ -1,0 +1,71 @@
+package objectmatcher
+
+import (
+	"encoding/json"
+	"fmt"
+
+	"github.com/banzaicloud/objectmatcher/pkg/apply"
+	"github.com/goph/emperror"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/jsonmergepatch"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
+)
+
+type PatchResult struct {
+	Patch []byte
+	Current []byte
+	Modified []byte
+	Original []byte
+}
+
+func (p *PatchResult) Unmodified() bool {
+	return string(p.Patch) == "{}"
+}
+
+func (p *PatchResult) String() string {
+	return fmt.Sprintf("\nPatch: %s \nCurrent: %s\nModified: %s\nOriginal: %s\n", p.Patch, p.Current, p.Modified, p.Original)
+}
+
+func CalculatePatch(currentObject, modifiedObject runtime.Object) (*PatchResult, error) {
+	current, err := json.Marshal(currentObject)
+	if err != nil {
+		return nil, emperror.Wrap(err, "Failed to convert current object to byte sequence")
+	}
+
+	modified, err := json.Marshal(modifiedObject)
+	if err != nil {
+		return nil, emperror.Wrap(err, "Failed to convert current object to byte sequence")
+	}
+
+	//modified, _, err = apply.DeleteNullInJson(modified)
+	//if err != nil {
+	//	return nil, emperror.Wrap(err, "Failed to delete null from modified object")
+	//}
+
+	original, err := apply.GetOriginalConfiguration(currentObject)
+	if err != nil {
+		return nil, emperror.Wrap(err, "Failed to get original configuration")
+	}
+
+	var patch []byte
+
+	switch currentObject.(type) {
+	default:
+		lookupPatchMeta, err := strategicpatch.NewPatchMetaFromStruct(modifiedObject)
+		if err != nil {
+			return nil, emperror.WrapWith(err, "Failed to lookup patch meta", "current object", currentObject)
+		}
+		patch, err = strategicpatch.CreateThreeWayMergePatch(original, modified, current, lookupPatchMeta, true)
+	case *unstructured.Unstructured:
+		patch, err = jsonmergepatch.CreateThreeWayJSONMergePatch(original, modified, current)
+	}
+
+	return &PatchResult{
+		Patch: patch,
+		Current: current,
+		Modified: modified,
+		Original: original,
+	}, nil
+}
+
