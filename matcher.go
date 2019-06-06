@@ -38,10 +38,10 @@ func CalculatePatch(currentObject, modifiedObject runtime.Object) (*PatchResult,
 		return nil, emperror.Wrap(err, "Failed to convert current object to byte sequence")
 	}
 
-	//modified, _, err = apply.DeleteNullInJson(modified)
-	//if err != nil {
-	//	return nil, emperror.Wrap(err, "Failed to delete null from modified object")
-	//}
+	modified, _, err = apply.DeleteNullInJson(modified)
+	if err != nil {
+		return nil, emperror.Wrap(err, "Failed to delete null from modified object")
+	}
 
 	original, err := apply.GetOriginalConfiguration(currentObject)
 	if err != nil {
@@ -57,8 +57,14 @@ func CalculatePatch(currentObject, modifiedObject runtime.Object) (*PatchResult,
 			return nil, emperror.WrapWith(err, "Failed to lookup patch meta", "current object", currentObject)
 		}
 		patch, err = strategicpatch.CreateThreeWayMergePatch(original, modified, current, lookupPatchMeta, true)
+		if err != nil {
+			return nil, emperror.Wrap(err, "Failed to generate strategic merge patch")
+		}
 	case *unstructured.Unstructured:
 		patch, err = jsonmergepatch.CreateThreeWayJSONMergePatch(original, modified, current)
+		if err != nil {
+			return nil, emperror.Wrap(err, "Failed to generate merge patch")
+		}
 	}
 
 	return &PatchResult{

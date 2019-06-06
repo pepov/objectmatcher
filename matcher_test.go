@@ -24,6 +24,7 @@ func TestSimple(t *testing.T) {
 					Port:       80,
 				},
 			},
+			ExternalName: "asdasd",
 			Selector: map[string]string{
 				"app": "test",
 			},
@@ -43,6 +44,8 @@ func TestSimple(t *testing.T) {
 		t.Fatalf("failed to create original: %s", err)
 	}
 
+	// let's delete externalname and see the test fail
+	modified.Spec.ExternalName = ""
 	result, err := CalculatePatch(current, modified)
 	if err != nil {
 		t.Fatalf("failed to calculate patch: %s", err)

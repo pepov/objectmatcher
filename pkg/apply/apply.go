@@ -182,10 +182,9 @@ func deleteNullInObj(m map[string]interface{}) (map[string]interface{}, error) {
 	filteredMap := make(map[string]interface{})
 
 	for key, val := range m {
-		if val == nil {
+		if val == nil || isZero(reflect.ValueOf(val)) {
 			continue
 		}
-
 		switch typedVal := val.(type) {
 		default:
 			return nil, errors.Errorf("unknown type: %v", reflect.TypeOf(typedVal))
@@ -220,7 +219,7 @@ func deleteNullInObj(m map[string]interface{}) (map[string]interface{}, error) {
 func deleteNullInSlice(m []interface{}) ([]interface{}, error) {
 	filteredSlice := make([]interface{}, len(m))
 	for key, val := range m {
-		if val == nil {
+		if val == nil || isZero(reflect.ValueOf(val)) {
 			continue
 		}
 		switch typedVal := val.(type) {
@@ -243,4 +242,26 @@ func deleteNullInSlice(m []interface{}) ([]interface{}, error) {
 		}
 	}
 	return filteredSlice, nil
+}
+
+func isZero(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Func, reflect.Map, reflect.Slice:
+		return v.IsNil()
+	case reflect.Array:
+		z := true
+		for i := 0; i < v.Len(); i++ {
+			z = z && isZero(v.Index(i))
+		}
+		return z
+	case reflect.Struct:
+		z := true
+		for i := 0; i < v.NumField(); i++ {
+			z = z && isZero(v.Field(i))
+		}
+		return z
+	}
+	// Compare other types directly:
+	z := reflect.Zero(v.Type())
+	return v.Interface() == z.Interface()
 }
